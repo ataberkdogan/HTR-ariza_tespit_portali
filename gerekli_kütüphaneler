@@ -2,3 +2,4 @@ pip install ttkwidgets
 pip install openpyxl
 pip install pandas
 pip install Pillow
+pip install Python-IO
