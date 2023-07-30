@@ -3,3 +3,6 @@ pip install openpyxl
 pip install pandas
 pip install Pillow
 pip install Python-IO
+
+py installer --onefile aa.py  _py uzantılı dosyayı exe olarak çevirme
+py installer --onedir aa.py  _ py uzantılı dosyayı klasör şeklinde exe dosyası yapma
