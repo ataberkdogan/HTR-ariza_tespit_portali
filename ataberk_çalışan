@@ -1,0 +1,170 @@
+import tkinter as tk
+from tkinter import ttk
+from ttkwidgets.autocomplete import AutocompleteCombobox
+import openpyxl
+import pandas as pd
+
+def update_table():
+    selected_stok_numarasi = combobox_var.get()
+    clear_table()  # Tabloyu temizle
+    table.insert("", "end", values=[selected_stok_numarasi])
+
+def clear_table():
+    table.delete(*table.get_children())
+
+def update_eleman_combobox(event):
+    selected_stok_numarasi = combobox_var.get()
+    elemanlar = veriler[veriler["KART STOK NO"] == selected_stok_numarasi]["ONARILACAK KONUM"].drop_duplicates().tolist()
+    combobox_ariza["values"] = elemanlar
+    combobox_ariza.set("")
+
+    kart_elemanlar = veriler[veriler["KART STOK NO"] == selected_stok_numarasi]["ONARILACAK KONUM"]
+    arizali_eleman_sayisi = kart_elemanlar.shape[0]
+    toplam_arizali_eleman_sayisi = veriler[veriler["ONARILACAK KONUM"].isin(elemanlar)].shape[0]
+
+    output_label_arizali_sayisi.config(text=f"Karttaki Arızalı Eleman Sayısı: {arizali_eleman_sayisi}\n")
+    output_label_toplam_arizali_sayisi.config(text=f"Toplam Arızalı Eleman Sayısı: {toplam_arizali_eleman_sayisi}\n")
+
+    ariza_olasilik_text = ""
+    for eleman in elemanlar:
+        eleman_olasilik = kart_elemanlar.value_counts(normalize=True)[eleman] * 100
+        ariza_olasilik_text += f"{eleman}: {eleman_olasilik:.2f}%\n"
+    output_label_olasilik.config(text=ariza_olasilik_text)
+
+    # Tabloyu güncelle
+    clear_table()
+    update_table()
+
+def update_ariza_label(event):
+    selected_ariza = combobox_var_ariza.get()
+    selected_stok_numarasi = combobox_var.get()
+
+    ariza = veriler[(veriler["KART STOK NO"] == selected_stok_numarasi) & (veriler["ONARILACAK KONUM"] == selected_ariza)]["ONARILACAK KONUM"].values[0]
+    ariza_aciklamasi = veriler[(veriler["KART STOK NO"] == selected_stok_numarasi) & (veriler["ONARILACAK KONUM"] == selected_ariza)]["ARIZA AÇIKLAMASI"].values[0]
+
+    # Tabloyu güncelle
+    clear_table()
+    kart_elemanlar = veriler[(veriler["KART STOK NO"] == selected_stok_numarasi) & (veriler["ONARILACAK KONUM"] == selected_ariza)]["ONARILACAK KONUM"]
+    for eleman in kart_elemanlar:
+        eleman_olasilik = kart_elemanlar.value_counts(normalize=True)[eleman] * 100
+        ariza_eleman_aciklama = veriler[(veriler["KART STOK NO"] == selected_stok_numarasi) & (veriler["ONARILACAK KONUM"] == selected_ariza) & (veriler["ONARILACAK KONUM"] == eleman)]["ARIZA AÇIKLAMASI"].values[0]
+        table.insert("", "end", values=[selected_stok_numarasi, eleman, f"{eleman_olasilik:.2f}%", ariza_eleman_aciklama])
+
+def ariza_ekle_clicked():
+    ariza_window = tk.Toplevel()
+    ariza_window.geometry("1330x120")
+    ariza_window.configure(bg="white")
+    ariza_window.title("Arıza Kaydı")
+
+    labels = ["ASELSAN İŞ EMRİ", "HTR İŞ EMRİ", "KART STOK NO", "SN", "ONARILACAK KONUM", "ARIZA AÇIKLAMASI", "ARIZAYI TESPİT EDEN PERSONEL", "ONARIM DURUMU", "ONARIMA TESLİM EDİLEN TARİH"]
+    entry_list = []
+
+    for i, label in enumerate(labels):
+        label = tk.Label(ariza_window, text=label, bg="white")
+        label.grid(row=0, column=i, padx=5, pady=5)
+
+        entry = tk.Entry(ariza_window)
+        entry.grid(row=1, column=i, padx=5, pady=5)
+        entry_list.append(entry)
+
+    def kaydet_clicked():
+        data = []
+        for entry in entry_list:
+            if not entry.get():
+                show_error()
+                return
+            data.append(entry.get())
+
+        ariza_window.destroy()
+
+        wb = openpyxl.load_workbook('C:\\Users\\asus\\Desktop\\hata_test\\htr-hata.xlsx')
+        ws = wb.active
+        ws.append(data)
+
+        wb.save('C:\\Users\\asus\\Desktop\\hata_test\\htr-hata.xlsx')
+
+        # Veritabanına eklendikten sonra, tabloyu güncelle
+        update_eleman_combobox(None)
+
+    btn_kaydet = tk.Button(ariza_window, text="Kaydet", command=kaydet_clicked)
+    btn_kaydet.grid(row=2, columnspan=len(labels), pady=10)
+
+def show_error():
+    error_window = tk.Toplevel()
+    error_window.geometry("270x60")
+    error_window.configure(bg="white")
+    error_window.title("Hatalı İşlem")
+
+    error_label = tk.Label(error_window, text="Eksik veri girişi yapıldı!", bg="white")
+    error_label.pack(pady=20)
+
+def clear_labels():
+    output_label_arizali_sayisi.config(text="")
+    output_label_toplam_arizali_sayisi.config(text="")
+    output_label_olasilik.config(text="")
+    output_label_ariza.config(text="")
+    output_label_ariza_aciklamasi.config(text="")
+    combobox_var.set("")
+    combobox_var_ariza.set("")
+    clear_table()
+
+table = tk.Tk()
+table.title("Arıza Tespit Portalı")
+table.geometry("830x700")
+table.configure(bg="white")
+
+veriler = pd.read_excel(io='C:\\Users\\asus\\Desktop\\hata_test\\htr-hata.xlsx', usecols=["KART STOK NO", "ONARILACAK KONUM", "ARIZA AÇIKLAMASI"])
+stok_numaralari_unique = [str(stok) for stok in veriler["KART STOK NO"].drop_duplicates().tolist()]
+
+label_stok = ttk.Label(table, text="KART STOK NO")
+label_stok.grid(row=2, column=0, pady=10)
+
+combobox_var = tk.StringVar()
+combobox_stok = AutocompleteCombobox(table, textvariable=combobox_var, font=("Arial", 12), completevalues=stok_numaralari_unique)
+combobox_stok.grid(row=2, column=1)
+
+output_label_olasilik = ttk.Label(table, text="", font=("Arial", 10), foreground="red", anchor="w")
+output_label_olasilik.grid(row=4, column=0, columnspan=2, sticky="w")
+
+label_ariza = ttk.Label(table, text="OLASI ONARILACAK KONUM")
+label_ariza.grid(row=5, column=0, pady=10)
+
+combobox_var_ariza = tk.StringVar()
+combobox_ariza = AutocompleteCombobox(
+    table,
+    textvariable=combobox_var_ariza,
+    font=("Arial", 12),
+    completevalues=[str(value) for value in veriler["ONARILACAK KONUM"].drop_duplicates().tolist()]
+)
+combobox_ariza.grid(row=5, column=1)
+
+output_label_ariza_aciklamasi = ttk.Label(table, text="", font=("Arial", 12), foreground="black", anchor="w")
+output_label_ariza_aciklamasi.grid(row=6, column=0, columnspan=2, sticky="w")
+
+output_label_ariza = ttk.Label(table, text="", font=("Arial", 12), foreground="blue", anchor="w", wraplength=550, justify="left")
+
+btn_temizle = tk.Button(table, text="Temizle", height=1, bg="red", fg="white", command=clear_labels)
+btn_temizle.grid(row=10, column=0, columnspan=2, pady=8, sticky="we")
+
+btn_ariza_ekle = tk.Button(table, text="Arıza Ekle", command=ariza_ekle_clicked)
+btn_ariza_ekle.grid(row=11, column=0, columnspan=2, pady=5, sticky="we")
+
+output_label_arizali_sayisi = ttk.Label(table, text="", font=("Arial", 12), foreground="black", anchor="w")
+output_label_arizali_sayisi.grid(row=12, column=0, columnspan=2, sticky="w")
+
+output_label_toplam_arizali_sayisi = ttk.Label(table, text="", font=("Arial", 12), foreground="black", anchor="w")
+output_label_toplam_arizali_sayisi.grid(row=13, column=0, columnspan=2, sticky="w")
+
+table_columns = ["Arızalı Kart", "Arızalı Eleman", "Arızalanma Sıklığı", "Arıza Açıklaması"]
+table = ttk.Treeview(table, columns=table_columns, show="headings")
+for col in table_columns:
+    table.heading(col, text=col, anchor="center")
+    table.column(col, anchor="center")
+
+table_scroll = ttk.Scrollbar(table, orient="vertical", command=table.yview)
+table.grid(row=7, column=0, columnspan=2, padx=5, pady=5, sticky="nsew")
+
+combobox_stok.bind("<<ComboboxSelected>>", update_eleman_combobox)
+combobox_ariza.bind("<<ComboboxSelected>>", update_ariza_label)
+
+table.mainloop()
